@@ -23,14 +23,15 @@ int relayInputs[] = { 2, 0 };
 int lightsStates[] = { 1, 0 };// 2 lights: first one ON, second one OFF
 
 // server config
-const char* host = "";
+const char* host = "goodbots.asdtechltd.com";
 const uint16_t port = 80;
 
 // SSL Setup
 // http://askubuntu.com/questions/156620/how-to-verify-the-ssl-fingerprint-by-command-line-wget-curl/
 // echo | openssl s_client -connect www.googleapis.com:443 | openssl x509 -fingerprint -noout
 
-const char* fingerprint = "";
+const char* fingerprint = "D9 E4 0E 51 98 C6 11 B5 5C E4 DC C5 AF D3 96 42 37 B3 27 4A";
+// D9:E4:0E:51:98:C6:11:B5:5C:E4:DC:C5:AF:D3:96:42:37:B3:27:4A
 
 void tick()
 {
@@ -212,7 +213,7 @@ int client(HTTPClient& http, const String& uri, bool https, const char* type, co
   url += host;
   url += uri;
   https ? http.begin(url, fingerprint) : http.begin(url);
-  http.setAuthorization("", "");
+  http.setAuthorization("firewings1097@gmail.com", "123456");
 
   Serial.printf("[HTTP] %s...%s\n", type, payload.length() == 0 ? "[No Payload]" : "[With Payload]" );
   // start connection and send HTTP header

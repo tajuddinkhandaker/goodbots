@@ -14,10 +14,10 @@
 
 ESP8266WiFiMulti WiFiMulti;
 
-const char* ssid     = "";
-const char* password = "";
+const char* ssid     = "Despicable Me";
+const char* password = "iron#Tank?1097";
 
-const char* host = "";
+const char* host = "goodbots.asdtechltd.com";
 const uint16_t port = 80;
 
 // (D4) => 2, (D2) => 0
