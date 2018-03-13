@@ -15,14 +15,22 @@
 //for LED status
 #include <Ticker.h>
 
+#define DEBUG true
+
 Ticker ticker;
 // (D4) => 2, (D2) => 0
 int relayInputs[] = { 2, 0 };
 int lightsStates[] = { 1, 0 };// 2 lights: first one ON, second one OFF
 
 // server config
-const char* host = "portfolio.asdtechltd.com";
+const char* host = "";
 const uint16_t port = 80;
+
+// SSL Setup
+// http://askubuntu.com/questions/156620/how-to-verify-the-ssl-fingerprint-by-command-line-wget-curl/
+// echo | openssl s_client -connect www.googleapis.com:443 | openssl x509 -fingerprint -noout
+
+const char* fingerprint = "";
 
 void tick()
 {
@@ -43,28 +51,13 @@ void configModeCallback (WiFiManager *myWiFiManager) {
 
 void switchStates()
 {
-    if (lightsStates[0] == 1)
-    {
-        digitalWrite(relayInputs[0], LOW); // turn relay off
-        Serial.println("Light 1 OFF");
-    }
-    else
-    {
-        digitalWrite(relayInputs[0], HIGH); // turn relay on
-        Serial.println("Light 1 ON");
-    }
-        
-    if (lightsStates[1] == 1)
-    {
-        digitalWrite(relayInputs[1], LOW); // turn relay off
-        Serial.println("Light 2 ON");
-    }
-    else
-    {
-        digitalWrite(relayInputs[1], HIGH); // turn relay on
-        Serial.println("Light 2 OFF");
-    }
-    delay(1000);
+
+  digitalWrite(relayInputs[0], lightsStates[0] == 1 ? LOW : HIGH); // turn relay on/ off
+  Serial.printf("Light 1 %s\n", lightsStates[0] == 1 ?  "ON" : "OFF");
+  
+  digitalWrite(relayInputs[1], lightsStates[1] == 1 ? LOW : HIGH); // turn relay on/ off
+  Serial.printf("Light 2 %s\n", lightsStates[1] == 1 ?  "ON" : "OFF");
+  delay(1000);
 }
 
 // JSON input string.
@@ -88,7 +81,7 @@ bool updateStates(const String& payload)
   JsonObject& root = jsonBuffer.parseObject(payload);
 
   lightsStates[0] = root["lights"][0]; // 1
-  lightsStates[1] = root["lights"][1]; // 0  
+  lightsStates[1] = root["lights"][1]; // 0
 
   // Test if parsing succeeds.
   if (!root.success())
@@ -103,14 +96,19 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   // Serial.setDebugOutput(true);
-  
+
   while (!Serial)
   {
     Serial.println("Waiting for serial ... ");
     delay(10);
     continue;
   }
-  
+  for (uint8_t t = 4; t > 0; t--) {
+    Serial.printf("[SETUP] WAIT %d...\n", t);
+    Serial.flush();
+    delay(1000);
+  }
+
   //set led pin as output
   pinMode(BUILTIN_LED, OUTPUT);
   // start ticker with 0.5 because we start in AP mode and try to connect
@@ -141,51 +139,106 @@ void setup() {
   ticker.detach();
   //keep LED on
   digitalWrite(BUILTIN_LED, LOW);
-  
+
   // put your setup code here, to run once:
   pinMode(relayInputs[0], OUTPUT); // initialize pin as OUTPUT
   pinMode(relayInputs[1], OUTPUT); // initialize pin as OUTPUT
+}
+
+void handleHttpResponse(HTTPClient& http, int httpCode)
+{
+  switch (httpCode)
+  {
+    case HTTP_CODE_OK:
+      {
+        // file found at server
+        String payload = http.getString();
+        if (updateStates(payload))
+        {
+          Serial.println("Payload parsed ... [OK]");
+          switchStates();
+        }
+        else
+        {
+          Serial.println("Payload parsed ... [FAILED]");
+#ifdef DEBUG
+          Serial.println(payload);
+#endif
+        }
+        break;
+      }
+    case HTTP_CODE_FOUND:
+      {
+        String payload = http.getString();
+        Serial.printf("[HTTP] GET... Found with redirection url [%s]\n", payload.c_str());
+
+        delay(5000);
+        if (client(http, "/login", false, "POST", "") != httpCode)
+        {
+          handleHttpResponse(http, client(http, "/login", true, "POST", ""));
+        }
+        break;
+      }
+    //case HTTPC_ERROR_CONNECTION_REFUSED:
+    case HTTP_CODE_UNAUTHORIZED:
+      {
+        Serial.println("[HTTP] GET... Unauthorized");
+        String auth_uri = "/oauth/authorize?";
+        auth_uri += "&client_id=1";
+        auth_uri += "&redirect_uri=urn:ietf:wg:oauth:2.0:oob";
+        auth_uri += "&response_type=code";
+        auth_uri += "&scope=";
+
+        delay(5000);
+        if (client(http, auth_uri, false, "GET", "") == httpCode)
+        {
+          handleHttpResponse(http, client(http, auth_uri, true, "GET", ""));
+        }
+        break;
+      }
+    default:
+      break;
+  }
+}
+
+int client(HTTPClient& http, const String& uri, bool https, const char* type, const String& payload)
+{
+
+  Serial.print("[HTTP] begin...\n");
+  // configure target server and url
+  // http.begin(host, port, uri, fingerprint); //HTTPS
+  // http.begin(host, port, uri); //HTTP
+  String url = https ? "https://" : "http://";
+  url += host;
+  url += uri;
+  https ? http.begin(url, fingerprint) : http.begin(url);
+  http.setAuthorization("", "");
+
+  Serial.printf("[HTTP] %s...%s\n", type, payload.length() == 0 ? "[No Payload]" : "[With Payload]" );
+  // start connection and send HTTP header
+  int httpCode = payload.length() == 0 ? http.sendRequest(type) : http.sendRequest(type, payload);;
+
+  if (httpCode < 0)
+  {
+    Serial.printf("[HTTP] %s... [%d], error: %s\nURI=[%s]\n", type, httpCode, HTTPClient::errorToString(httpCode).c_str(), url.c_str());
+  }
+  else
+  {
+    // HTTP header has been send and Server response header has been handled
+    Serial.printf("[HTTP] %s... code: %d\nURI=[%s]\n", type, httpCode, url.c_str());
+  }
+  return httpCode;
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   HTTPClient http;
 
-  Serial.print("[HTTP] begin...\n");
-  // configure target server and url
-  http.begin(host, port, "/api/v1/iot/test"); //HTTP
-
-  Serial.print("[HTTP] GET...\n");
-  // start connection and send HTTP header
-  int httpCode = http.GET();
-
-  // httpCode will be negative on error
-  if(httpCode > 0) {
-      // HTTP header has been send and Server response header has been handled
-      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-      // file found at server
-      if(httpCode == HTTP_CODE_OK)
-        {
-          String payload = http.getString();
-          if (updateStates(payload))
-          {
-              Serial.println("Payload parsed ... [OK]");
-              switchStates();
-          }
-          else
-          {
-              Serial.println("Payload parsed ... [FAILED]");
-              Serial.println(payload);
-          }
-      }
-  }
-  else
-  {
-      Serial.printf("[HTTP] GET... failed, error: %s\n", HTTPClient::errorToString(httpCode).c_str());
-  }
+  // try to a host
+  // curl -u firewings1097@gmail.com:123456 -G http://goodbots.asdtechltd.com:80/api/v1/iot/test
+  handleHttpResponse(http, client(http, "/api/v1/iot/test", false, "GET", ""));
 
   http.end();
-  
-  delay(3000);
+
+  delay(5000); //was: 3000
 }
