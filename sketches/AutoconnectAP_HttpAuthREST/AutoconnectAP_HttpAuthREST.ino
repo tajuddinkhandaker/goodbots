@@ -3,7 +3,6 @@
 #include <ArduinoJson.h>
 
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
-
 #include <ESP8266HTTPClient.h>
 
 //needed for library
@@ -23,16 +22,6 @@ Ticker ticker;
 // (D4) => 2, (D2) => 0
 int relayInputs[] = { 2, 0 };
 int lightsStates[] = { 1, 0 };// 2 lights: first one ON, second one OFF
-
-// server config
-const char* host = "";
-const uint16_t port = 80;
-
-// SSL Setup
-// http://askubuntu.com/questions/156620/how-to-verify-the-ssl-fingerprint-by-command-line-wget-curl/
-// echo | openssl s_client -connect www.googleapis.com:443 | openssl x509 -fingerprint -noout
-
-const char* fingerprint = "";
 
 void tick()
 {
@@ -56,7 +45,7 @@ void switchStates()
 
   digitalWrite(relayInputs[0], lightsStates[0] == 1 ? LOW : HIGH); // turn relay on/ off
   Serial.printf("Light 1 %s\n", lightsStates[0] == 1 ?  "ON" : "OFF");
-  
+
   digitalWrite(relayInputs[1], lightsStates[1] == 1 ? LOW : HIGH); // turn relay on/ off
   Serial.printf("Light 2 %s\n", lightsStates[1] == 1 ?  "ON" : "OFF");
   delay(1000);
@@ -165,38 +154,8 @@ void handleHttpResponse(HTTPClient& http, int httpCode)
           Serial.println("Payload parsed ... [FAILED]");
         }
 #ifdef DEBUG
-          Serial.println(payload);
+        Serial.println(payload);
 #endif
-        }
-        break;
-      }
-    case HTTP_CODE_FOUND:
-      {
-        String payload = http.getString();
-        Serial.printf("[HTTP] GET... Found with redirection url [%s]\n", payload.c_str());
-
-        delay(5000);
-        if (client(http, "/login", false, "POST", "") != httpCode)
-        {
-          handleHttpResponse(http, client(http, "/login", true, "POST", ""));
-        }
-        break;
-      }
-    //case HTTPC_ERROR_CONNECTION_REFUSED:
-    case HTTP_CODE_UNAUTHORIZED:
-      {
-        Serial.println("[HTTP] GET... Unauthorized");
-        String auth_uri = "/oauth/authorize?";
-        auth_uri += "&client_id=1";
-        auth_uri += "&redirect_uri=urn:ietf:wg:oauth:2.0:oob";
-        auth_uri += "&response_type=code";
-        auth_uri += "&scope=";
-
-        delay(5000);
-        if (client(http, auth_uri, false, "GET", "") == httpCode)
-        {
-          handleHttpResponse(http, client(http, auth_uri, true, "GET", ""));
-        }
         break;
       }
     default:
@@ -206,8 +165,6 @@ void handleHttpResponse(HTTPClient& http, int httpCode)
 
 int client(HTTPClient& http, const String& uri, bool https, const char* type, const String& payload)
 {
-
-  Serial.print("[HTTP] begin...\n");
   // configure target server and url
   // http.begin(host, port, uri, fingerprint); //HTTPS
   // http.begin(host, port, uri); //HTTP
@@ -219,13 +176,12 @@ int client(HTTPClient& http, const String& uri, bool https, const char* type, co
   Serial.print("[HTTP] begin...\n");
 
   if ( payload.length() > 0 )
-  {    
+  {
     http.addHeader("Content-Type", "application/json");
-    //http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   }
 
   Serial.printf("[HTTP] %s...\n", type);
-  
+
   // start connection and send HTTP header
   int httpCode = payload.length() == 0 ? http.sendRequest(type) : http.sendRequest(type, payload);
 
@@ -244,9 +200,9 @@ int client(HTTPClient& http, const String& uri, bool https, const char* type, co
 void loop() {
   // put your main code here, to run repeatedly:
   HTTPClient http;
-    
+
   DynamicJsonBuffer jsonBuffer(JSON_OBJECT_SIZE(4));
-  
+
   JsonObject& root = jsonBuffer.createObject();
   root["grant_type"] = "client_credentials";
   root["client_id"] = client_id;
@@ -254,7 +210,7 @@ void loop() {
   root["scope"] = "*";
   String payload;
   root.printTo(payload);
-  
+
   handleHttpResponse(http, client(http, "/oauth/token", false, "POST", payload));
 
   http.end();
