@@ -1,7 +1,3 @@
-
-#include <Arduino.h>
-#include <ArduinoJson.h>
-
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
 #include <ESP8266HTTPClient.h>
 
@@ -14,9 +10,8 @@
 //for LED status
 #include <Ticker.h>
 
-#include "config.h"
-
-#define DEBUG true
+#include "ComponentManager.h"
+#include "HttpConnectionManager.h"
 
 Ticker ticker;
 // (D4) => 2, (D2) => 0
@@ -51,6 +46,11 @@ void switchStates()
   delay(1000);
 }
 
+bool isLogResponse(JsonObject& root)
+{
+  return root["data"].success() && root["data"]["log"].success();
+}
+
 // JSON input string.
 //
 // It's better to use a char[] as shown here.
@@ -71,15 +71,15 @@ bool updateStates(const String& payload)
   // Memory is freed when jsonBuffer goes out of scope.
   JsonObject& root = jsonBuffer.parseObject(payload);
 
-  lightsStates[0] = root["lights"][0]; // 1
-  lightsStates[1] = root["lights"][1]; // 0
-
   // Test if parsing succeeds.
   if (!root.success())
   {
     Serial.println("parseObject() failed");
     return false;
   }
+
+  lightsStates[0] = root["lights"][0]; // 1
+  lightsStates[1] = root["lights"][1]; // 0
   return true;
 }
 
@@ -136,82 +136,24 @@ void setup() {
   pinMode(relayInputs[1], OUTPUT); // initialize pin as OUTPUT
 }
 
-void handleHttpResponse(HTTPClient& http, int httpCode)
-{
-  switch (httpCode)
-  {
-    case HTTP_CODE_OK:
-      {
-        // file found at server
-        String payload = http.getString();
-        if (updateStates(payload))
-        {
-          Serial.println("Payload parsed ... [OK]");
-          //switchStates();
-        }
-        else
-        {
-          Serial.println("Payload parsed ... [FAILED]");
-        }
-#ifdef DEBUG
-        Serial.println(payload);
-#endif
-        break;
-      }
-    default:
-      break;
-  }
-}
-
-int client(HTTPClient& http, const String& uri, bool https, const char* type, const String& payload)
-{
-  // configure target server and url
-  // http.begin(host, port, uri, fingerprint); //HTTPS
-  // http.begin(host, port, uri); //HTTP
-  String url = https ? "https://" : "http://";
-  url += host;
-  url += uri;
-  https ? http.begin(url, fingerprint) : http.begin(url);
-  //http.setAuthorization(username, password);
-  Serial.print("[HTTP] begin...\n");
-
-  if ( payload.length() > 0 )
-  {
-    http.addHeader("Content-Type", "application/json");
-  }
-
-  Serial.printf("[HTTP] %s...\n", type);
-
-  // start connection and send HTTP header
-  int httpCode = payload.length() == 0 ? http.sendRequest(type) : http.sendRequest(type, payload);
-
-  if (httpCode < 0)
-  {
-    Serial.printf("[HTTP] %s... [%d], error: %s\nURI=[%s]\n", type, httpCode, HTTPClient::errorToString(httpCode).c_str(), url.c_str());
-  }
-  else
-  {
-    // HTTP header has been send and Server response header has been handled
-    Serial.printf("[HTTP] %s... code: %d\nURI=[%s]\n", type, httpCode, url.c_str());
-  }
-  return httpCode;
-}
-
 void loop() {
   // put your main code here, to run repeatedly:
   HTTPClient http;
-
-  DynamicJsonBuffer jsonBuffer(JSON_OBJECT_SIZE(4));
-
-  JsonObject& root = jsonBuffer.createObject();
-  root["grant_type"] = "client_credentials";
-  root["client_id"] = client_id;
-  root["client_secret"] = client_secret;
-  root["scope"] = "*";
-  String payload;
-  root.printTo(payload);
-
-  handleHttpResponse(http, client(http, "/oauth/token", false, "POST", payload));
+  HttpConnectionManager conn(http);
+  if (conn.authenticate())
+  {
+     Serial.println("Ready to send/ fetch automation data.");
+  }
+  
+//  if (updateStates(response))
+//  {
+//    Serial.println("Payload parsed ... [OK]");
+//    //switchStates();
+//  }
+//  else
+//  {
+//    Serial.println("Payload parsed ... [FAILED]");
+//  }
 
   http.end();
 
