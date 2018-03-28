@@ -142,18 +142,25 @@ void loop() {
   HttpConnectionManager conn(http);
   if (conn.authenticate())
   {
-     Serial.println("Ready to send/ fetch automation data.");
+    Serial.println("Ready to send/ fetch automation data.");
+    String response;
+    String uri = "/api/v1/components/states/botclients/";
+    uri += client_id;
+    if (conn.get(uri.c_str(), "", response))
+    {
+      Serial.println(response);
+    
+      if (updateStates(response))
+      {
+        Serial.println("Payload parsed ... [OK]");
+        //switchStates();
+      }
+      else
+      {
+        Serial.println("Payload parsed ... [FAILED]");
+      }
+    }
   }
-  
-//  if (updateStates(response))
-//  {
-//    Serial.println("Payload parsed ... [OK]");
-//    //switchStates();
-//  }
-//  else
-//  {
-//    Serial.println("Payload parsed ... [FAILED]");
-//  }
 
   http.end();
 

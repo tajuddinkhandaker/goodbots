@@ -8,7 +8,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-int client(HTTPClient& http, const String& uri, bool https, const char* type, const String& payload)
+int client(HTTPClient& http, const String& uri, bool https, const char* type, const String& bearerToken, const String& payload)
 {
   // configure target server and url
   // http.begin(host, port, uri, fingerprint); //HTTPS
@@ -20,12 +20,15 @@ int client(HTTPClient& http, const String& uri, bool https, const char* type, co
   //http.setAuthorization(username, password);
   Serial.print("[HTTP] begin...\n");
 
-  if ( payload.length() > 0 )
+  http.addHeader("Accept", "application/json");
+  if ( payload.length() > 0  && !http.hasHeader("Content-Type"))
   {
-    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Content-Type", "application/json; charset=utf-8");
   }
-
-  Serial.printf("[HTTP] %s...\n", type);
+  if (bearerToken.length() > 0 && !http.hasHeader("Authorization"))
+  {
+    http.addHeader("Authorization", bearerToken);
+  }
 
   // start connection and send HTTP header
   int httpCode = payload.length() == 0 ? http.sendRequest(type) : http.sendRequest(type, payload);
@@ -61,8 +64,8 @@ int RLog(HTTPClient& http, int httpCode, const char* msg)
     const char* keys[] = { "client_id", "http_code", "message" };
     const char* values[] = { client_id, code, msg };
     String payload;
-    toJson(keys, values, 4, payload);    
-    return client(http, "/api/v1/clients/log", false, "POST", payload);
+    toJson(keys, values, 3, payload);
+    return client(http, "/api/v1/clients/log", false, "POST", "", payload);
 }
 
 #endif
