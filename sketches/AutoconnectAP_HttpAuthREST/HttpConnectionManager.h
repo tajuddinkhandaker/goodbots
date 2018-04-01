@@ -67,7 +67,10 @@ class HttpConnectionManager
             {
               clearToken();
             }
-            RLog(m_http, httpCode, "... [FAILED]");
+            else if (httpCode > 0)
+            {
+              RLog(m_http, httpCode, "... [FAILED]");
+            }
             break;
          }
       }

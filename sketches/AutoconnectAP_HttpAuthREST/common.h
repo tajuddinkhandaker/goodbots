@@ -16,18 +16,22 @@ int client(HTTPClient& http, const String& uri, bool https, const char* type, co
   String url = https ? "https://" : "http://";
   url += host;
   url += uri;
-  https ? http.begin(url, fingerprint) : http.begin(url);
-  //http.setAuthorization(username, password);
+  https ? http.begin(url, fingerprint) : http.begin(url);  
+  http.setAuthorization(username, password);
+  
   Serial.print("[HTTP] begin...\n");
-
-  http.addHeader("Accept", "application/json");
+  
+  http.addHeader(F("Accept"), F("application/json"));
+  
   if ( payload.length() > 0  && !http.hasHeader("Content-Type"))
   {
-    http.addHeader("Content-Type", "application/json; charset=utf-8");
+    http.addHeader(F("Content-Type"), F("application/json; charset=utf-8"));
+    Serial.printf("[Content-Type] %s\n", http.hasHeader("Content-Type") ? "YES" : "NO");
   }
   if (bearerToken.length() > 0 && !http.hasHeader("Authorization"))
   {
-    http.addHeader("Authorization", bearerToken);
+    http.addHeader(F("Authorization"), bearerToken);
+    Serial.printf("[Authorization] %s\n", http.hasHeader("Authorization") ? "YES" : "NO");
   }
 
   // start connection and send HTTP header

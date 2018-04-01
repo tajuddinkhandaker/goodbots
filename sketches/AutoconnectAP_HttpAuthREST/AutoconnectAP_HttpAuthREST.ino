@@ -62,7 +62,7 @@ bool updateStates(const String& payload)
   // StaticJsonBuffer allocates memory on the stack, it can be
   // replaced by DynamicJsonBuffer which allocates in the heap.
   // const size_t bufferSize = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(1) + 20;
-  DynamicJsonBuffer jsonBuffer(JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(1) + 20);
+  DynamicJsonBuffer jsonBuffer(JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(2) + 20);
 
   // Root of the object tree.
   //
@@ -77,10 +77,13 @@ bool updateStates(const String& payload)
     Serial.println("parseObject() failed");
     return false;
   }
-
-  lightsStates[0] = root["lights"][0]; // 1
-  lightsStates[1] = root["lights"][1]; // 0
-  return true;
+  bool updated = root["updated"];
+  if (updated)
+  {
+    lightsStates[0] = root["lights"][0]; // 1
+    lightsStates[1] = root["lights"][1]; // 0
+  }
+  return updated;
 }
 
 void setup() {
@@ -144,20 +147,16 @@ void loop() {
   {
     Serial.println("Ready to send/ fetch automation data.");
     String response;
-    String uri = "/api/v1/components/states/botclients/";
+    String uri = "/api/v1/clients/components/states/botclients/"; //"/api/v1/clients/components/states/botclients/"
     uri += client_id;
     if (conn.get(uri.c_str(), "", response))
     {
-      Serial.println(response);
+      //Serial.println(response);
     
       if (updateStates(response))
       {
-        Serial.println("Payload parsed ... [OK]");
-        //switchStates();
-      }
-      else
-      {
-        Serial.println("Payload parsed ... [FAILED]");
+        Serial.println("Component updated... [OK]");
+        switchStates();
       }
     }
   }
